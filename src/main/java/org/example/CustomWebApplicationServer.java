@@ -9,10 +9,13 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class CustomWebApplicationServer {
     private final int port;
 
+    private final ExecutorService executorService = Executors.newFixedThreadPool(10);
     private static final Logger logger = LoggerFactory.getLogger(CustomWebApplicationServer.class);
 
     public CustomWebApplicationServer(int port) {
@@ -28,32 +31,10 @@ public class CustomWebApplicationServer {
 
             while ((clientSocket = serverSocket.accept()) != null) {
                  logger.info("[CustomWebApplicationServer] client connected.");
-
                 /**
-                 *  STEP1. 사용자의 요청을 MainThread가 처리한다.
+                 *  STEP3. ThreadPool을 이용하여 안정적인 서비스가 가능하게 한다. 
                  */
-
-                try (InputStream in = clientSocket.getInputStream(); OutputStream out = clientSocket.getOutputStream()) {
-                    BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-                    DataOutputStream dos = new DataOutputStream(out);
-
-                    HttpRequst httpRequst = new HttpRequst(br);
-
-                    if (httpRequst.isGetRequest() && httpRequst.matchPath("/calculate")) {
-                        QueryStrings queryStrings = httpRequst.getQueryStrings();
-
-                        int opernand1 = Integer.parseInt(queryStrings.getValue("operand1"));
-                        String operator = queryStrings.getValue("operator");
-                        int operand2 = Integer.parseInt(queryStrings.getValue("operand2"));
-
-                        int result = Calculator.calcuate(new PositiveNumber(opernand1), operator, new PositiveNumber(operand2));
-                        byte[] body = String.valueOf(result).getBytes();
-
-                        HttpResponse response = new HttpResponse(dos);
-                        response.response200Header("application/json", body.length);
-                        response.responseBody(body);
-                    }
-                }
+                executorService.execute(new ClientRequestHandler(clientSocket));
             }
         }
 
